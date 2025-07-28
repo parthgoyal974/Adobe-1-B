@@ -4,7 +4,7 @@
 import sys
 from pathlib import Path
 
-import fitz                       # PyMuPDF
+import fitz                              # PyMuPDF
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
@@ -14,17 +14,7 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 # --------------------------------------------------------------------------- #
 def extract_text(pdf_path: Path) -> str:
     """
-    Return the full plain-text content of a PDF.
-
-    Parameters
-    ----------
-    pdf_path : Path
-        Path to a single PDF file.
-
-    Returns
-    -------
-    str
-        All text contained in the PDF, stripped of leading / trailing blanks.
+    Return the full plain-text content of a single PDF.
     """
     doc = fitz.open(pdf_path)
     pages = [page.get_text("text") for page in doc]
@@ -38,9 +28,6 @@ def extract_text(pdf_path: Path) -> str:
 def build_prompt(persona: str, job: str, resume_text: str) -> str:
     """
     Compose the final prompt handed to T5.
-
-    Feel free to adjust the wording here – the clearer the instructions,
-    the better the small T5 model will behave.
     """
     return (
         f"You are {persona}.\n"
@@ -57,27 +44,29 @@ def build_prompt(persona: str, job: str, resume_text: str) -> str:
 # --------------------------------------------------------------------------- #
 def main() -> None:
     # ----------------------- argument parsing --------------------------------
-    if len(sys.argv) < 4:
-        sys.exit(
-            "Usage: python pdf_to_t5.py <job> <persona> <pdf1> [<pdf2> ...]"
-        )
+    if len(sys.argv) != 3:
+        sys.exit("Usage: python pdf_to_t5.py <persona> <job>")
 
-    job     = sys.argv[1]
-    persona = sys.argv[2]
-    pdf_paths = [Path(p) for p in sys.argv[3:]]
+    persona = sys.argv[1]
+    job     = sys.argv[2]
 
-    # Validate files exist
-    missing = [str(p) for p in pdf_paths if not p.is_file()]
-    if missing:
-        sys.exit(f"Error: file(s) not found – {', '.join(missing)}")
+    # ----------------------- I/O locations -----------------------------------
+    root_dir    = Path(__file__).resolve().parent
+    input_dir   = root_dir / "app" / "input"
+    output_dir  = root_dir / "app" / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    pdf_paths = sorted(input_dir.glob("*.pdf"))
+    if not pdf_paths:
+        sys.exit(f"No PDF files found in {input_dir}")
 
     # ----------------------- text extraction ---------------------------------
     texts = []
     for pdf in pdf_paths:
-        print(f"Extracting text from {pdf} ...")
+        print(f"Extracting text from {pdf.name} ...")
         texts.append(extract_text(pdf))
 
-    resume_text = "\n\n".join(texts)      # merge all PDFs into one blob
+    resume_text = "\n\n".join(texts)       # merge all PDFs into one blob
     prompt      = build_prompt(persona, job, resume_text)
 
     # ----------------------- model & tokenizer -------------------------------
@@ -85,7 +74,7 @@ def main() -> None:
     tokenizer  = AutoTokenizer.from_pretrained(model_name)
     model      = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = "cpu"
     model.to(device)
 
     # ----------------------- encode / generate -------------------------------
@@ -93,7 +82,7 @@ def main() -> None:
         prompt,
         return_tensors="pt",
         truncation=True,
-        max_length=512,        # keep within t5-small limits
+        max_length=512,        # within t5-small limits
     ).to(device)
 
     generated_ids = model.generate(
@@ -105,10 +94,12 @@ def main() -> None:
 
     result = tokenizer.decode(generated_ids[0], skip_special_tokens=True)
 
-    # ----------------------- output ------------------------------------------
-    print("\n" + "=" * 60 + "\nGenerated output:\n")
-    print(result)
-    print("\n" + "=" * 60)
+    # ----------------------- write output ------------------------------------
+    persona_file = persona.replace(" ", "_") + ".txt"
+    out_path     = output_dir / persona_file
+
+    out_path.write_text(result, encoding="utf-8")
+    print(f"\nResult written to {out_path.resolve()}")
 
 
 if __name__ == "__main__":
