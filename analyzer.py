@@ -52,8 +52,8 @@ def main() -> None:
 
     # ----------------------- I/O locations -----------------------------------
     root_dir    = Path(__file__).resolve().parent
-    input_dir   = root_dir / "app" / "input"
-    output_dir  = root_dir / "app" / "output"
+    input_dir   = root_dir  / "input"
+    output_dir  = root_dir/ "output"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     pdf_paths = sorted(input_dir.glob("*.pdf"))
