@@ -20,11 +20,11 @@ def build_prompt(persona: str, job: str, resume_text: str) -> str:
     the better t5-small will behave.
     """
     return (f"You are {persona}.\n"
-            f"Job opening: {job}.\n\n"
-            "Using the resume below, write a customised cover letter.\n\n"
-            "Resume:\n"
+            f"Job to do by you: {job}.\n\n"
+            "Using the info below, write a customised response.\n\n"
+            "response:\n"
             f"{resume_text}\n\n"
-            "Cover letter:")
+            "response letter:")
 
 # 3. -------- Main driver ----------------------------------------------------
 def main():
